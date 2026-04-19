@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: songs-service
+  namespace: microservices
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: songs-service
+  template:
+    metadata:
+      labels:
+        app: songs-service
+    spec:
+      containers:
+        - name: songs-service
+          image: songs-service:v6
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8081
+          startupProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "curl -s http://localhost:8081/songs | grep -q '405\\|200' && echo 'success' || exit 1"
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "curl -s http://localhost:8081/songs | grep -q '405\\|200' && echo 'success' || exit 1"
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "curl -s http://localhost:8081/songs | grep -q '405\\|200' && echo 'success' || exit 1"
+            initialDelaySeconds: 40
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          env:
+            - name: EUREKA_SERVER
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: EUREKA_URL
+            - name: SONGS_DB_URL
+              value: "postgres"
+            - name: SONGS_DB_PORT
+              value: "5432"
+            - name: ENABLE_EUREKA_CLIENT
+              value: "true"
+            - name: EUREKA_URI
+              value: "eureka"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: songs-service
+  namespace: microservices
+spec:
+  selector:
+    app: songs-service
+  ports:
+    - port: 80
+      targetPort: 8081
+  type: ClusterIP

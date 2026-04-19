@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: resources-service
+  namespace: microservices
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: resources-service
+  template:
+    metadata:
+      labels:
+        app: resources-service
+    spec:
+      containers:
+        - name: resources-service
+          image: resources-service:v5
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          startupProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "curl -s -o /dev/null http://localhost:8080/resources/1 && echo 'success' || exit 1"
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "curl -s -o /dev/null http://localhost:8080/resources/1 && echo 'success' || exit 1"
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "curl -s -o /dev/null http://localhost:8080/resources/1 && echo 'success' || exit 1"
+            initialDelaySeconds: 40
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          env:
+            - name: EUREKA_SERVER
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: EUREKA_URL
+            - name: RESOURCES_DB_URL
+              value: "postgres"
+            - name: RESOURCES_DB_PORT
+              value: "5432"
+            - name: ENABLE_EUREKA_CLIENT
+              value: "true"
+            - name: EUREKA_URI
+              value: "eureka"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: resources-service
+  namespace: microservices
+spec:
+  selector:
+    app: resources-service
+  ports:
+    - port: 80
+      targetPort: 8080
+  type: ClusterIP
